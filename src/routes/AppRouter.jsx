@@ -1,11 +1,13 @@
 import {BrowserRouter, Routes, Route} from "react-router-dom"
+import { AuthProvider, useAuth } from "../context/AuthContext.jsx";
+import { HomePage } from "../pages/HomePage.jsx";
 
 
 
 function AppRouter() {
   return (
     <AuthProvider>
-      <AppLR/>
+      <AppLR />
     </AuthProvider>
   );
 }
