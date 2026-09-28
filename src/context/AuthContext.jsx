@@ -1,6 +1,16 @@
 import { createContext, useContext, useEffect, useState } from "react"
-import { loginRequest, registerRequest, setAuthToken, verifyTokenRequest } from "../api/auth";
-import Cookies from 'js-cookie';
+import {
+    loginRequest,
+    registerRequest,
+    guardarSesion,
+    borrarSesion,
+    leerToken,
+    leerUsuario,
+    decodificarToken,
+    tokenVigente,
+} from "../api/auth";
+import { mensajesDeError } from "../api/axios";
+
 export const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -9,117 +19,69 @@ export const useAuth = () => {
     return context;
 };
 
-export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [errors, setErrors] = useState([]);
-    const [loading, setLoading] = useState(true);
+//AL CARGAR LA APP SE RECUPERA LA SESION GUARDADA (SI EL TOKEN SIGUE VIGENTE)
+const restaurarSesion = () => {
+    const token = leerToken();
 
+    if (tokenVigente(token)) {
+        const { id, rol } = decodificarToken(token);
+        return leerUsuario() ?? { id, rol };
+    }
+    borrarSesion();
+    return null;
+};
+
+export const AuthProvider = ({ children }) => {
+    const [user, setUser] = useState(restaurarSesion);
+    const [errors, setErrors] = useState([]);
+    const isAuthenticated = user !== null;
 
     //HACEMOS DESAPARECER CUALQUIER MENSAJE DE ERROR LUEGO DE 5 SEGUNDOS
     useEffect(() => {
-        if (errors && errors.length > 0) {
-            const timner = setTimeout(() => {
-                setErrors([]);
-            }, 5000);
-            return () => clearTimeout(timner);
+        if (errors.length > 0) {
+            const timer = setTimeout(() => setErrors([]), 5000);
+            return () => clearTimeout(timer);
         }
     }, [errors]);
 
-    const signUp = async (user) => {
-        try {
-            const res = await registerRequest(user);
-            const token = res.data.token;
-            const userData = res.data.user;
-            setAuthToken(token);
-            Cookies.set("token", res.data.token);
-            setUser(userData);
-            setIsAuthenticated(true);
-            checkLogin();
-        } catch (error) {
-            console.log(error.response.data);
-            setErrors(error.response.data.message);
-            throw error;
+    const iniciarSesion = (token, userData) => {
+        guardarSesion(token, userData);
+        setUser(userData);
+    };
 
+    // signUp y signIn devuelven true/false para que la pantalla sepa si puede redirigir
+    const signUp = async (datos) => {
+        try {
+            const res = await registerRequest(datos);
+            iniciarSesion(res.data.token, res.data.user);
+            return true;
+        } catch (error) {
+            setErrors(mensajesDeError(error));
+            return false;
         }
     };
 
-    const signIn = async (user) => {
+    const signIn = async (datos) => {
         try {
-            const res = await loginRequest(user);
-            const token = res.data.token;
-            setAuthToken(token);
-            Cookies.set("token", res.data.token);
-            setIsAuthenticated(true);
-            checkLogin();
+            const res = await loginRequest(datos);
+            iniciarSesion(res.data.token, res.data.user);
+            return true;
         } catch (error) {
-            console.log(error);
-            setErrors(error.response.data.message);
+            setErrors(mensajesDeError(error));
+            return false;
         }
-    }
+    };
 
     const logout = () => {
-        Cookies.remove("token");
+        borrarSesion();
         setUser(null);
-        setIsAuthenticated(false);
-        setAuthToken(null);
-    }
-
-    async function checkLogin() {
-        const token = Cookies.get("token");
-        if (!token) {
-            setIsAuthenticated(false);
-            setUser(null);
-            setLoading(false);
-            setAuthToken(null);
-            return;
-        }
-
-        try {
-            const res = await verifyTokenRequest(token);
-
-            if (!res.data) {
-                setIsAuthenticated(false);
-                setUser(null);
-                setAuthToken(null);
-            } else {
-                setIsAuthenticated(true);
-                setUser(res.data);
-            }
-            setLoading(false);
-        } catch (error) {
-
-            if (error.response && error.response.status === 401) {
-
-            } else {
-
-                console.error('Error al verificar el token:', error);
-            }
-
-            setIsAuthenticated(false);
-            setUser(null);
-            setLoading(false);
-        }
-    }
-
-    useEffect(() => {
-        const storedToken = Cookies.get("token");
-        if (storedToken) {
-            setAuthToken(storedToken)
-        }
-    }, []);
-
-    useEffect(() => {
-        checkLogin();
-    }, []);
+    };
 
     return (
-
         <AuthContext.Provider
             value={{
                 signUp,
                 signIn,
-                loading,
                 user,
                 logout,
                 isAuthenticated,
