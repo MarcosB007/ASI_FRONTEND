@@ -1,16 +1,55 @@
-# React + Vite
+# TuAgro · Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Panel de gestión del campo con tres módulos: **clientes**, **proveedores** y **empleados**.
+React 19 + Vite + React Router + Axios, sin librerías de UI (CSS propio en `src/styles`).
+Tipografías: Inter y Plus Jakarta Sans (instaladas con `@fontsource`, funcionan sin internet).
 
-Currently, two official plugins are available:
+## Puesta en marcha
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+El frontend espera el backend en `http://localhost:3000`. Si está en otra dirección, copiá
+`.env.example` a `.env` y cambiá `VITE_API_URL`. El backend debe permitir el origen
+`http://localhost:5173` en CORS.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Qué hace cada módulo
 
-## Expanding the Oxlint configuration
+- **Clientes:** listado, alta, edición y baja. Cada cliente tiene un botón *Historial* con sus compras.
+- **Proveedores:** igual que clientes, más el **rubro** (Semillas, Combustibles, etc.) y su historial de compras.
+- **Empleados:** el sector y el cargo se eligen de listas que vienen del backend (`/sectores` y `/cargos`).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+> Los historiales de compras usan **datos de ejemplo** (`src/utils/ejemplos.js`): el backend todavía no guarda
+> compras ni ventas. Cuando exista el endpoint, se reemplazan por los datos reales.
+
+## Estructura
+
+```
+src/
+├── api/
+│   ├── axios.js      instancia de Axios (URL base, JWT en cada request, manejo de 401)
+│   ├── auth.js       login/registro y manejo de la sesión (cookie con el token)
+│   └── asiApi.js     endpoints de clientes, proveedores, empleados, sectores y cargos
+├── context/
+│   └── AuthContext.jsx   sesión del usuario (signIn, signUp, logout, user, isAuthenticated)
+├── pages/            pantallas y componentes de pantalla
+│   ├── HomePage, LoginPage, RegisterPage, AdministracionPage (panel)
+│   ├── ClientesPage, ProveedoresPage, EmpleadosPage   (configuración de cada módulo)
+│   ├── ModuloCrud.jsx    listado + búsqueda + alta/edición + baja, compartido por los 3 módulos
+│   ├── HistorialModal, BotonHistorial   historial de compras
+│   └── Header, Footer, Modal, Iconos, NotFoundPage
+├── routes/
+│   └── AppRouter.jsx     rutas públicas y rutas protegidas por sesión
+├── styles/               base (colores y tipografía), layout, home y módulos
+├── utils/                formato, rubros, ejemplos y hooks para cargar sectores/cargos/empleados
+└── config.js             URL del backend y nombre de la marca
+```
+
+## Notas
+
+- Para cambiar el nombre que aparece en el encabezado, editá `MARCA` en `src/config.js`.
+- Los colores están todos en `src/styles/base.css` (escala `--verde-50` a `--verde-950`).
+- Para agregar un módulo nuevo alcanza con sumar sus endpoints en `asiApi.js`, una página que
+  configure `ModuloCrud` (columnas y campos) y una ruta en `AppRouter.jsx`.
