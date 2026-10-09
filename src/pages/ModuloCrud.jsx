@@ -8,7 +8,8 @@ import { IconoBaja, IconoBuscar, IconoEditar, IconoMas } from "./Iconos.jsx";
 const obtenerId = (fila, claves) => claves.map((c) => fila[c]).find((v) => v !== undefined);
 
 const valorInicial = (campo, fila) => {
-    const valor = fila?.[campo.name] ?? "";
+    // porDefecto solo se usa al crear (por ejemplo, estado = 1)
+    const valor = fila ? (fila[campo.name] ?? "") : (campo.porDefecto ?? "");
     return campo.type === "date" ? String(valor).slice(0, 10) : String(valor);
 };
 
@@ -125,6 +126,7 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
  * `api` debe ser un objeto estable (definido fuera del componente) con:
  * listar(), crear(datos), actualizar(id, datos), baja(id)
  * `accionesExtra(fila)` permite sumar botones propios en cada fila (por ejemplo, el historial).
+ * `soloLectura` oculta crear / editar / dar de baja (vista del rol USER). El backend también lo bloquea.
  */
 export const ModuloCrud = ({
     titulo,
@@ -136,6 +138,7 @@ export const ModuloCrud = ({
     api,
     nombreDe,
     accionesExtra,
+    soloLectura = false,
 }) => {
     const [filas, setFilas] = useState([]);
     const [cargando, setCargando] = useState(true);
@@ -168,6 +171,8 @@ export const ModuloCrud = ({
         const timer = setTimeout(() => setAviso(""), 4000);
         return () => clearTimeout(timer);
     }, [aviso]);
+
+    const hayAcciones = !soloLectura || Boolean(accionesExtra);
 
     const visibles = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
@@ -215,9 +220,11 @@ export const ModuloCrud = ({
                     <h1>{titulo}</h1>
                     <p className="texto-suave">{descripcion}</p>
                 </div>
-                <button type="button" className="btn btn-primario" onClick={() => setFormulario({ fila: null })}>
-                    <IconoMas /> Nuevo {singular.toLowerCase()}
-                </button>
+                {!soloLectura && (
+                    <button type="button" className="btn btn-primario" onClick={() => setFormulario({ fila: null })}>
+                        <IconoMas /> Nuevo {singular.toLowerCase()}
+                    </button>
+                )}
             </div>
 
             {aviso && (
@@ -267,7 +274,7 @@ export const ModuloCrud = ({
                                     {columnas.map((c) => (
                                         <th key={c.titulo}>{c.titulo}</th>
                                     ))}
-                                    <th className="col-acciones">Acciones</th>
+                                    {hayAcciones && <th className="col-acciones">Acciones</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -278,30 +285,36 @@ export const ModuloCrud = ({
                                                 {c.formato ? c.formato(fila[c.clave], fila) : conGuion(fila[c.clave])}
                                             </td>
                                         ))}
-                                        <td className="col-acciones">
-                                            {accionesExtra?.(fila)}
-                                            <button
-                                                type="button"
-                                                className="btn-icono"
-                                                title="Editar"
-                                                aria-label={`Editar ${nombreDe(fila)}`}
-                                                onClick={() => setFormulario({ fila })}
-                                            >
-                                                <IconoEditar />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn-icono btn-icono-peligro"
-                                                title="Dar de baja"
-                                                aria-label={`Dar de baja a ${nombreDe(fila)}`}
-                                                onClick={() => {
-                                                    setErrorBaja("");
-                                                    setABaja(fila);
-                                                }}
-                                            >
-                                                <IconoBaja />
-                                            </button>
-                                        </td>
+                                        {hayAcciones && (
+                                            <td className="col-acciones">
+                                                {accionesExtra?.(fila)}
+                                                {!soloLectura && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-icono"
+                                                            title="Editar"
+                                                            aria-label={`Editar ${nombreDe(fila)}`}
+                                                            onClick={() => setFormulario({ fila })}
+                                                        >
+                                                            <IconoEditar />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-icono btn-icono-peligro"
+                                                            title="Dar de baja"
+                                                            aria-label={`Dar de baja a ${nombreDe(fila)}`}
+                                                            onClick={() => {
+                                                                setErrorBaja("");
+                                                                setABaja(fila);
+                                                            }}
+                                                        >
+                                                            <IconoBaja />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -310,7 +323,7 @@ export const ModuloCrud = ({
                 )}
             </div>
 
-            {formulario && (
+            {!soloLectura && formulario && (
                 <FormularioModal
                     titulo={`${formulario.fila ? "Editar" : "Nuevo"} ${singular.toLowerCase()}`}
                     campos={campos}
@@ -320,7 +333,7 @@ export const ModuloCrud = ({
                 />
             )}
 
-            {aBaja && (
+            {!soloLectura && aBaja && (
                 <Modal
                     titulo={`Dar de baja ${singular.toLowerCase()}`}
                     onCerrar={() => setABaja(null)}

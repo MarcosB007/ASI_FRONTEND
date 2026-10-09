@@ -17,11 +17,11 @@ const ENLACES = [
     { to: "/panel", texto: "Panel", Icono: IconoPanel },
     { to: "/clientes", texto: "Clientes", Icono: IconoClientes },
     { to: "/proveedores", texto: "Proveedores", Icono: IconoProveedores },
-    { to: "/empleados", texto: "Empleados", Icono: IconoEmpleados },
+    { to: "/empleados", texto: "Empleados", Icono: IconoEmpleados, soloAdmin: true },
 ];
 
 export const Header = () => {
-    const { isAuthenticated, user, logout } = useAuth();
+    const { isAuthenticated, esAdmin, user, logout } = useAuth();
     const [abierto, setAbierto] = useState(false);
 
     const cerrarMenu = () => setAbierto(false);
@@ -59,7 +59,7 @@ export const Header = () => {
                 <nav className={`header-nav${abierto ? " abierto" : ""}`}>
                     {isAuthenticated ? (
                         <>
-                            {ENLACES.map(({ to, texto, Icono }) => (
+                            {ENLACES.filter((e) => esAdmin || !e.soloAdmin).map(({ to, texto, Icono }) => (
                                 <NavLink
                                     key={to}
                                     to={to}

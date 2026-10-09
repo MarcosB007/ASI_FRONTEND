@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { bajaProveedor, createProveedor, getProveedores, updateProveedor } from "../api/asiApi";
 import { historialProveedor } from "../utils/ejemplos.js";
-import { RUBROS } from "../utils/rubros.js";
 import { useEmpleados } from "../utils/useEmpleados.js";
+import { OPCIONES_ESTADO } from "../utils/estado.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import EstadoChip from "./EstadoChip.jsx";
 import HistorialModal from "./HistorialModal.jsx";
 import BotonHistorial from "./BotonHistorial.jsx";
 import ModuloCrud from "./ModuloCrud.jsx";
@@ -16,36 +18,24 @@ const api = {
 
 const ID_CLAVES = ["idPROVEEDOR", "id"];
 
-const OPCIONES_RUBRO = RUBROS.map((r) => ({ valor: r, etiqueta: r }));
-
 export const ProveedoresPage = () => {
+    const { esAdmin } = useAuth();
     const { opciones, nombreEmpleado } = useEmpleados();
     const [proveedorHistorial, setProveedorHistorial] = useState(null);
 
     const columnas = [
         { titulo: "Nombre", clave: "nombre" },
-        {
-            titulo: "Rubro",
-            clave: "rubro",
-            formato: (rubro) => (rubro ? <span className="chip">{rubro}</span> : "—"),
-        },
         { titulo: "Email", clave: "email" },
+        { titulo: "Dirección", clave: "direccion" },
         { titulo: "A cargo", clave: "EMPLEADO_idEMPLEADO", formato: nombreEmpleado },
+        // El USER solo ve proveedores activos, así que la columna Estado es solo para el ADMIN
+        ...(esAdmin ? [{ titulo: "Estado", clave: "estado", formato: (estado) => <EstadoChip estado={estado} /> }] : []),
     ];
 
     const campos = [
         { name: "nombre", label: "Nombre", required: true },
-        {
-            name: "rubro",
-            label: "Rubro",
-            type: "select",
-            vacio: "Elegí un rubro",
-            required: true,
-            opciones: OPCIONES_RUBRO,
-        },
         { name: "email", label: "Email", type: "email", required: true },
-        { name: "direccion", label: "Dirección" },
-        { name: "descripcion", label: "Descripción", type: "textarea", completo: true, placeholder: "Qué nos provee" },
+        { name: "direccion", label: "Dirección", completo: true },
         {
             name: "EMPLEADO_idEMPLEADO",
             label: "Empleado a cargo",
@@ -53,8 +43,17 @@ export const ProveedoresPage = () => {
             vacio: "Elegí un empleado",
             numerico: true,
             required: true,
-            completo: true,
             opciones,
+        },
+        {
+            name: "estado",
+            label: "Estado",
+            type: "select",
+            vacio: "Elegí un estado",
+            numerico: true,
+            required: true,
+            porDefecto: 1,
+            opciones: OPCIONES_ESTADO,
         },
     ];
 
@@ -63,11 +62,16 @@ export const ProveedoresPage = () => {
             <ModuloCrud
                 titulo="Proveedores"
                 singular="Proveedor"
-                descripcion="Quienes te abastecen de insumos y servicios, ordenados por rubro."
+                descripcion={
+                    esAdmin
+                        ? "Quienes te abastecen de insumos y servicios."
+                        : "Los proveedores que tenés a cargo, con el historial de compras."
+                }
                 columnas={columnas}
                 campos={campos}
                 idClaves={ID_CLAVES}
                 api={api}
+                soloLectura={!esAdmin}
                 nombreDe={(f) => f.nombre ?? ""}
                 accionesExtra={(fila) => (
                     <BotonHistorial

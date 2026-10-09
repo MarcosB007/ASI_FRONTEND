@@ -35,6 +35,9 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(restaurarSesion);
     const [errors, setErrors] = useState([]);
     const isAuthenticated = user !== null;
+    // El rol viene del backend como "ADMIN" o "USER"
+    const rol = String(user?.rol ?? "").trim().toUpperCase();
+    const esAdmin = rol === "ADMIN";
 
     //HACEMOS DESAPARECER CUALQUIER MENSAJE DE ERROR LUEGO DE 5 SEGUNDOS
     useEffect(() => {
@@ -85,6 +88,7 @@ export const AuthProvider = ({ children }) => {
                 user,
                 logout,
                 isAuthenticated,
+                esAdmin,
                 errors,
             }}
         >

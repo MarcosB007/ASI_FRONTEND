@@ -20,6 +20,14 @@ function RutaProtegida() {
     return <Outlet />;
 }
 
+// Solo entra el rol ADMIN; el USER vuelve al panel
+function RutaAdmin() {
+    const { esAdmin } = useAuth();
+
+    if (!esAdmin) return <Navigate to="/panel" replace />;
+    return <Outlet />;
+}
+
 // Login y registro no tienen sentido si ya hay sesión iniciada: al iniciarla se
 // redirige acá (a la página que se quería visitar, o al panel)
 function RutaPublica() {
@@ -56,7 +64,10 @@ function AppLR() {
                             <Route path="/panel" element={<AdministracionPage />} />
                             <Route path="/clientes" element={<ClientesPage />} />
                             <Route path="/proveedores" element={<ProveedoresPage />} />
-                            <Route path="/empleados" element={<EmpleadosPage />} />
+
+                            <Route element={<RutaAdmin />}>
+                                <Route path="/empleados" element={<EmpleadosPage />} />
+                            </Route>
                         </Route>
 
                         <Route path="*" element={<NotFoundPage />} />
