@@ -3,7 +3,7 @@ import Cookies from 'js-cookie';
 import { API_URL } from '../config';
 
 const instance = axios.create({
-    baseURL: API_URL,
+    baseURL: process.env.API_URL || "http://localhost:3000",
 });
 
 // Adjunta el JWT guardado en la cookie a cada request
