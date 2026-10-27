@@ -1,8 +1,9 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { API_URL } from '../config';
 
 const instance = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
+    baseURL: API_URL,
 });
 
 // Adjunta el JWT guardado en la cookie a cada request

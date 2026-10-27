@@ -35,9 +35,12 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(restaurarSesion);
     const [errors, setErrors] = useState([]);
     const isAuthenticated = user !== null;
-    // El rol viene del backend como "ADMIN" o "USER"
+    // El rol viene del backend: ADMIN, PRODUCTOR o ENCARGADO
     const rol = String(user?.rol ?? "").trim().toUpperCase();
     const esAdmin = rol === "ADMIN";
+    const esEncargado = rol === "ENCARGADO";
+    // ADMIN y PRODUCTOR gestionan fincas, ventas y finanzas; el ENCARGADO solo carga datos de campo
+    const puedeGestionar = rol === "ADMIN" || rol === "PRODUCTOR";
 
     //HACEMOS DESAPARECER CUALQUIER MENSAJE DE ERROR LUEGO DE 5 SEGUNDOS
     useEffect(() => {
@@ -88,7 +91,10 @@ export const AuthProvider = ({ children }) => {
                 user,
                 logout,
                 isAuthenticated,
+                rol,
                 esAdmin,
+                esEncargado,
+                puedeGestionar,
                 errors,
             }}
         >

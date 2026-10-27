@@ -2,23 +2,26 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { mensajesDeError } from "../api/axios";
 import { conGuion } from "../utils/formato.js";
 import Modal from "./Modal.jsx";
-import { IconoBaja, IconoBuscar, IconoEditar, IconoMas } from "./Iconos.jsx";
+import { IconoAlta, IconoBaja, IconoBuscar, IconoEditar, IconoMas } from "./Iconos.jsx";
 
-// Cada tabla del backend nombra distinto su clave primaria (idEMPLEADO, idPROVEEDOR...)
 const obtenerId = (fila, claves) => claves.map((c) => fila[c]).find((v) => v !== undefined);
 
 const valorInicial = (campo, fila) => {
-    // porDefecto solo se usa al crear (por ejemplo, estado = 1)
-    const valor = fila ? (fila[campo.name] ?? "") : (campo.porDefecto ?? "");
+    // porDefecto solo se usa al crear (puede ser una función, ej: la fecha de hoy)
+    const porDefecto = typeof campo.porDefecto === "function" ? campo.porDefecto() : campo.porDefecto;
+    const valor = fila ? (fila[campo.name] ?? "") : (porDefecto ?? "");
     return campo.type === "date" ? String(valor).slice(0, 10) : String(valor);
 };
 
-// Si el registro tiene un valor que no está en la lista (por ejemplo un rubro viejo),
-// se agrega igual para que no se pierda al editar
-const opcionesDe = (campo, actual) =>
-    actual && !campo.opciones.some((o) => String(o.valor) === String(actual))
-        ? [...campo.opciones, { valor: actual, etiqueta: actual }]
-        : campo.opciones;
+// campo.opciones puede ser una lista fija o una función de los valores del formulario
+// (para desplegables que dependen de otro, como lote según la finca elegida)
+const opcionesDe = (campo, valores) => {
+    const lista = typeof campo.opciones === "function" ? campo.opciones(valores) : (campo.opciones ?? []);
+    const actual = valores[campo.name];
+    return actual && !lista.some((o) => String(o.valor) === String(actual))
+        ? [...lista, { valor: actual, etiqueta: String(actual) }]
+        : lista;
+};
 
 // Convierte lo escrito en el formulario al cuerpo que espera el backend
 const armarPayload = (campos, valores) =>
@@ -41,7 +44,17 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
     const [enviando, setEnviando] = useState(false);
     const [error, setError] = useState("");
 
-    const cambiar = (nombre) => (e) => setValores((v) => ({ ...v, [nombre]: e.target.value }));
+    // Al cambiar un campo se vacían los que dependen de él (campo.depende = ["finca", ...])
+    const cambiar = (name) => (e) => {
+        const nuevo = e.target.value;
+        setValores((v) => {
+            const siguiente = { ...v, [name]: nuevo };
+            visibles.forEach((c) => {
+                if (c.depende?.includes(name)) siguiente[c.name] = "";
+            });
+            return siguiente;
+        });
+    };
 
     const enviar = async (e) => {
         e.preventDefault();
@@ -90,7 +103,7 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
                             ) : campo.type === "select" ? (
                                 <select {...propsComunes}>
                                     <option value="">{campo.vacio ?? "Sin asignar"}</option>
-                                    {opcionesDe(campo, valores[campo.name]).map((o) => (
+                                    {opcionesDe(campo, valores).map((o) => (
                                         <option key={o.valor} value={o.valor}>
                                             {o.etiqueta}
                                         </option>
@@ -100,6 +113,7 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
                                 <input
                                     type={campo.type ?? "text"}
                                     min={campo.min}
+                                    step={campo.step}
                                     minLength={campo.minLength}
                                     pattern={campo.pattern}
                                     title={campo.title}
@@ -108,6 +122,7 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
                                     {...propsComunes}
                                 />
                             )}
+                            {campo.ayuda && <small className="texto-suave">{campo.ayuda}</small>}
                         </div>
                     );
                 })}
@@ -122,15 +137,23 @@ const FormularioModal = ({ titulo, campos, fila, onCerrar, onGuardar }) => {
 };
 
 /**
- * Listado + alta + edición + baja lógica para cualquier módulo.
+ * Listado + alta + edición + baja para cualquier módulo.
  * `api` debe ser un objeto estable (definido fuera del componente) con:
- * listar(), crear(datos), actualizar(id, datos), baja(id)
- * `accionesExtra(fila)` permite sumar botones propios en cada fila (por ejemplo, el historial).
- * `soloLectura` oculta crear / editar / dar de baja (vista del rol USER). El backend también lo bloquea.
+ *   listar(params), crear(datos), actualizar(id, datos), baja(id) y, opcional, alta(id).
+ * Si la fila trae `estado === 0` y hay `api.alta`, se muestra "Reactivar" en lugar de "Dar de baja".
+ *
+ * Props opcionales:
+ *  - permisos: { crear, editar, baja } (todos true por defecto; el backend igual los valida)
+ *  - bajaFisica: la baja borra el registro (cambia los textos de confirmación)
+ *  - params: filtros que se envían a listar(); al cambiar, se vuelve a cargar
+ *  - filtros: JSX con los controles de filtro (se muestra sobre la tabla)
+ *  - resumen(filas): JSX con totales de lo que se ve en pantalla
+ *  - accionesExtra(fila): botones propios por fila
  */
 export const ModuloCrud = ({
     titulo,
     singular,
+    genero = "o", // "o" → Nuevo / "a" → Nueva
     descripcion,
     columnas,
     campos,
@@ -138,8 +161,13 @@ export const ModuloCrud = ({
     api,
     nombreDe,
     accionesExtra,
-    soloLectura = false,
+    permisos = {},
+    bajaFisica = false,
+    params,
+    filtros,
+    resumen,
 }) => {
+    const { crear = true, editar = true, baja = true } = permisos;
     const [filas, setFilas] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState("");
@@ -149,18 +177,21 @@ export const ModuloCrud = ({
     const [aBaja, setABaja] = useState(null);
     const [errorBaja, setErrorBaja] = useState("");
 
+    // params llega como objeto nuevo en cada render: se compara por contenido
+    const clave = JSON.stringify(params ?? {});
+
     const cargar = useCallback(async () => {
         setCargando(true);
         setError("");
         try {
-            const res = await api.listar();
+            const res = await api.listar(JSON.parse(clave));
             setFilas(Array.isArray(res.data) ? res.data : []);
         } catch (e) {
             setError(mensajesDeError(e)[0]);
         } finally {
             setCargando(false);
         }
-    }, [api]);
+    }, [api, clave]);
 
     useEffect(() => {
         cargar();
@@ -172,7 +203,7 @@ export const ModuloCrud = ({
         return () => clearTimeout(timer);
     }, [aviso]);
 
-    const hayAcciones = !soloLectura || Boolean(accionesExtra);
+    const hayAcciones = editar || baja || Boolean(accionesExtra);
 
     const visibles = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
@@ -191,7 +222,7 @@ export const ModuloCrud = ({
             return mensajesDeError(e)[0];
         }
         setFormulario(null);
-        setAviso(fila ? `${singular} actualizado correctamente` : `${singular} creado correctamente`);
+        setAviso(`${singular} ${fila ? "actualizad" : "cread"}${genero} correctamente`);
         cargar();
         return null;
     };
@@ -209,9 +240,21 @@ export const ModuloCrud = ({
             return;
         }
         setABaja(null);
-        setAviso(`${singular} dado de baja`);
+        setAviso(bajaFisica ? `${singular} eliminad${genero}` : `${singular} dad${genero} de baja`);
         cargar();
     };
+
+    const reactivar = async (fila) => {
+        try {
+            await api.alta(obtenerId(fila, idClaves));
+            setAviso(`${singular} reactivad${genero}`);
+            cargar();
+        } catch (e) {
+            setError(mensajesDeError(e)[0]);
+        }
+    };
+
+    const verbo = bajaFisica ? "Eliminar" : "Dar de baja";
 
     return (
         <section className="contenedor modulo">
@@ -220,9 +263,9 @@ export const ModuloCrud = ({
                     <h1>{titulo}</h1>
                     <p className="texto-suave">{descripcion}</p>
                 </div>
-                {!soloLectura && (
+                {crear && (
                     <button type="button" className="btn btn-primario" onClick={() => setFormulario({ fila: null })}>
-                        <IconoMas /> Nuevo {singular.toLowerCase()}
+                        <IconoMas /> {genero === "a" ? "Nueva" : "Nuevo"} {singular.toLowerCase()}
                     </button>
                 )}
             </div>
@@ -234,12 +277,13 @@ export const ModuloCrud = ({
             )}
 
             <div className="tarjeta">
+                {filtros && <div className="filtros">{filtros}</div>}
                 <div className="barra-herramientas">
                     <label className="buscador">
                         <IconoBuscar />
                         <input
                             type="search"
-                            placeholder={`Buscar ${titulo.toLowerCase()}…`}
+                            placeholder={`Buscar en ${titulo.toLowerCase()}…`}
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                         />
@@ -250,6 +294,8 @@ export const ModuloCrud = ({
                         </span>
                     )}
                 </div>
+
+                {!cargando && !error && resumen && visibles.length > 0 && <div className="resumen-barra">{resumen(visibles)}</div>}
 
                 {cargando ? (
                     <p className="estado-vacio">Cargando…</p>
@@ -272,24 +318,27 @@ export const ModuloCrud = ({
                             <thead>
                                 <tr>
                                     {columnas.map((c) => (
-                                        <th key={c.titulo}>{c.titulo}</th>
+                                        <th key={c.titulo} className={c.numero ? "col-numero" : undefined}>
+                                            {c.titulo}
+                                        </th>
                                     ))}
                                     {hayAcciones && <th className="col-acciones">Acciones</th>}
                                 </tr>
                             </thead>
                             <tbody>
-                                {visibles.map((fila, i) => (
-                                    <tr key={obtenerId(fila, idClaves) ?? i}>
-                                        {columnas.map((c) => (
-                                            <td key={c.titulo} data-etiqueta={c.titulo}>
-                                                {c.formato ? c.formato(fila[c.clave], fila) : conGuion(fila[c.clave])}
-                                            </td>
-                                        ))}
-                                        {hayAcciones && (
-                                            <td className="col-acciones">
-                                                {accionesExtra?.(fila)}
-                                                {!soloLectura && (
-                                                    <>
+                                {visibles.map((fila, i) => {
+                                    const inactiva = fila.estado === 0;
+                                    return (
+                                        <tr key={obtenerId(fila, idClaves) ?? i} className={inactiva ? "fila-inactiva" : undefined}>
+                                            {columnas.map((c) => (
+                                                <td key={c.titulo} data-etiqueta={c.titulo} className={c.numero ? "col-numero" : undefined}>
+                                                    {c.formato ? c.formato(fila[c.clave], fila) : conGuion(fila[c.clave])}
+                                                </td>
+                                            ))}
+                                            {hayAcciones && (
+                                                <td className="col-acciones">
+                                                    {accionesExtra?.(fila)}
+                                                    {editar && (
                                                         <button
                                                             type="button"
                                                             className="btn-icono"
@@ -299,33 +348,46 @@ export const ModuloCrud = ({
                                                         >
                                                             <IconoEditar />
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            className="btn-icono btn-icono-peligro"
-                                                            title="Dar de baja"
-                                                            aria-label={`Dar de baja a ${nombreDe(fila)}`}
-                                                            onClick={() => {
-                                                                setErrorBaja("");
-                                                                setABaja(fila);
-                                                            }}
-                                                        >
-                                                            <IconoBaja />
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
+                                                    )}
+                                                    {baja &&
+                                                        (inactiva && api.alta ? (
+                                                            <button
+                                                                type="button"
+                                                                className="btn-icono"
+                                                                title="Reactivar"
+                                                                aria-label={`Reactivar ${nombreDe(fila)}`}
+                                                                onClick={() => reactivar(fila)}
+                                                            >
+                                                                <IconoAlta />
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                className="btn-icono btn-icono-peligro"
+                                                                title={verbo}
+                                                                aria-label={`${verbo} ${nombreDe(fila)}`}
+                                                                onClick={() => {
+                                                                    setErrorBaja("");
+                                                                    setABaja(fila);
+                                                                }}
+                                                            >
+                                                                <IconoBaja />
+                                                            </button>
+                                                        ))}
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 )}
             </div>
 
-            {!soloLectura && formulario && (
+            {formulario && (
                 <FormularioModal
-                    titulo={`${formulario.fila ? "Editar" : "Nuevo"} ${singular.toLowerCase()}`}
+                    titulo={`${formulario.fila ? "Editar" : genero === "a" ? "Nueva" : "Nuevo"} ${singular.toLowerCase()}`}
                     campos={campos}
                     fila={formulario.fila}
                     onCerrar={() => setFormulario(null)}
@@ -333,9 +395,9 @@ export const ModuloCrud = ({
                 />
             )}
 
-            {!soloLectura && aBaja && (
+            {aBaja && (
                 <Modal
-                    titulo={`Dar de baja ${singular.toLowerCase()}`}
+                    titulo={`${verbo} ${singular.toLowerCase()}`}
                     onCerrar={() => setABaja(null)}
                     pie={
                         <>
@@ -343,16 +405,18 @@ export const ModuloCrud = ({
                                 Cancelar
                             </button>
                             <button type="button" className="btn btn-peligro" onClick={confirmarBaja}>
-                                Dar de baja
+                                {verbo}
                             </button>
                         </>
                     }
                 >
                     <p>
-                        ¿Confirmás la baja de <strong>{nombreDe(aBaja)}</strong>?
+                        ¿Confirmás {bajaFisica ? "la eliminación" : "la baja"} de <strong>{nombreDe(aBaja)}</strong>?
                     </p>
                     <p className="texto-suave">
-                        Es una baja lógica: el registro deja de aparecer en el listado pero no se borra de la base de datos.
+                        {bajaFisica
+                            ? "Esta acción no se puede deshacer."
+                            : "El registro queda inactivo y se conserva el historial. Podés reactivarlo cuando quieras."}
                     </p>
                     {errorBaja && <p className="mensaje mensaje-error">{errorBaja}</p>}
                 </Modal>

@@ -1,26 +1,23 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { MARCA } from "../config";
-import { IconoClientes, IconoEmpleados, IconoProveedores } from "./Iconos.jsx";
+import { IconoFinca, IconoGasto, IconoRentabilidad, IconoVenta } from "../components/Iconos.jsx";
 
-const MODULOS = [
+const PASOS = [
     {
-        to: "/clientes",
-        titulo: "Clientes",
-        texto: "Quiénes te compran y qué compraron: cada cliente con su historial de operaciones.",
-        Icono: IconoClientes,
+        titulo: "Cargá tu campo",
+        texto: "Registrá tus fincas, lotes y qué sembraste en cada uno, campaña por campaña.",
+        Icono: IconoFinca,
     },
     {
-        to: "/proveedores",
-        titulo: "Proveedores",
-        texto: "Tus proveedores ordenados por rubro: semillas, combustibles, maquinaria y más.",
-        Icono: IconoProveedores,
+        titulo: "Anotá gastos y ventas",
+        texto: "Semillas, combustible, mano de obra, cosechas y ventas: todo en un mismo lugar.",
+        Icono: IconoGasto,
     },
     {
-        to: "/empleados",
-        titulo: "Empleados",
-        texto: "Tu equipo con su sector y su cargo, siempre a mano y actualizado.",
-        Icono: IconoEmpleados,
+        titulo: "Mirá cuánto ganás",
+        texto: "AgroPulse calcula tu ganancia y rentabilidad por finca, lote y cultivo.",
+        Icono: IconoRentabilidad,
     },
 ];
 
@@ -58,16 +55,21 @@ export const HomePage = () => {
                     <div className="hero-texto">
                         <span className="etiqueta">{MARCA.descripcion}</span>
                         <h1>
-                            Todo tu campo, <span>en un solo lugar.</span>
+                            Sabé cuánto <span>rinde tu campo.</span>
                         </h1>
                         <p>
-                            {MARCA.nombre} reúne a tus clientes, proveedores y empleados en un sistema simple y hecho a medida,
-                            para que dediques menos tiempo a los papeles y más tiempo al campo.
+                            {MARCA.nombre} te ayuda a llevar la producción, los gastos y las ventas de tus fincas, y te dice
+                            en un vistazo si estás ganando o perdiendo.
                         </p>
                         <div className="hero-acciones">
-                            <Link to={isAuthenticated ? "/panel" : "/login"} className="btn btn-claro btn-grande">
-                                {isAuthenticated ? "Ir al panel" : "Ingresar"}
+                            <Link to={isAuthenticated ? "/panel" : "/register"} className="btn btn-claro btn-grande">
+                                {isAuthenticated ? "Ir al panel" : "Crear mi cuenta"}
                             </Link>
+                            {!isAuthenticated && (
+                                <Link to="/login" className="btn btn-borde-claro btn-grande">
+                                    Ya tengo cuenta
+                                </Link>
+                            )}
                         </div>
                     </div>
                     <Campo />
@@ -75,19 +77,24 @@ export const HomePage = () => {
             </section>
 
             <section className="contenedor seccion">
-                <h2>Todo lo que necesitás</h2>
-                <p className="texto-suave seccion-intro">Tres módulos pensados para el día a día de tu explotación.</p>
+                <h2>Simple, en tres pasos</h2>
+                <p className="texto-suave seccion-intro">Pensado para productores y empresas del NOA.</p>
                 <div className="grilla-modulos">
-                    {MODULOS.map(({ to, titulo, texto, Icono }) => (
-                        <Link key={to} to={isAuthenticated ? to : "/login"} className="tarjeta tarjeta-modulo">
+                    {PASOS.map(({ titulo, texto, Icono }, i) => (
+                        <div key={titulo} className="tarjeta tarjeta-modulo">
                             <span className="modulo-icono">
                                 <Icono size={28} />
                             </span>
-                            <h3>{titulo}</h3>
+                            <h3>
+                                {i + 1}. {titulo}
+                            </h3>
                             <p className="texto-suave">{texto}</p>
-                        </Link>
+                        </div>
                     ))}
                 </div>
+                <p className="home-nota">
+                    <IconoVenta size={20} /> Cultivos como soja, maíz, poroto, caña de azúcar, limón y más.
+                </p>
             </section>
         </>
     );

@@ -8,6 +8,7 @@ import './styles/base.css'
 import './styles/layout.css'
 import './styles/home.css'
 import './styles/modulos.css'
+import './styles/panel.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

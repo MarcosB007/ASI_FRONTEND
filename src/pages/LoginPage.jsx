@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { IconoHoja } from "./Iconos.jsx";
+import { IconoHoja } from "../components/Iconos.jsx";
 
 export const LoginPage = () => {
     const { signIn, errors } = useAuth();
@@ -24,10 +24,10 @@ export const LoginPage = () => {
                     <IconoHoja size={28} />
                 </span>
                 <h1>Ingresar</h1>
-                <p className="texto-suave">Accedé al panel de gestión de tu campo.</p>
+                <p className="texto-suave">Entrá a tu panel de AgroPulse.</p>
 
                 <div className="campo">
-                    <label htmlFor="username">Usuario</label>
+                    <label htmlFor="username">Usuario o email</label>
                     <input id="username" name="username" value={datos.username} onChange={cambiar} autoComplete="username" required autoFocus />
                 </div>
                 <div className="campo">
@@ -44,6 +44,9 @@ export const LoginPage = () => {
                 <button type="submit" className="btn btn-primario btn-bloque btn-grande" disabled={enviando}>
                     {enviando ? "Ingresando…" : "Ingresar"}
                 </button>
+                <p className="auth-pie">
+                    <Link to="/recuperar">Olvidé mi contraseña</Link>
+                </p>
                 <p className="auth-pie">
                     ¿Todavía no tenés cuenta? <Link to="/register">Registrate</Link>
                 </p>

@@ -1,62 +1,39 @@
-import { useState } from "react";
-import { bajaCliente, createCliente, getClientes, updateCliente } from "../api/asiApi";
-import { historialCliente } from "../utils/ejemplos.js";
-import { useEmpleados } from "../utils/useEmpleados.js";
-import { OPCIONES_ESTADO } from "../utils/estado.js";
+import { useCallback, useMemo, useState } from "react";
+import { clientesApi } from "../api/agroApi";
 import { useAuth } from "../context/AuthContext.jsx";
-import EstadoChip from "./EstadoChip.jsx";
-import HistorialModal from "./HistorialModal.jsx";
-import BotonHistorial from "./BotonHistorial.jsx";
-import ModuloCrud from "./ModuloCrud.jsx";
-
-const api = {
-    listar: getClientes,
-    crear: createCliente,
-    actualizar: updateCliente,
-    baja: bajaCliente,
-};
-
-const ID_CLAVES = ["idCLIENTE", "id"];
+import ModuloCrud from "../components/ModuloCrud.jsx";
+import { ChipEstado, HistorialModal } from "../components/Piezas.jsx";
+import { IconoHistorial } from "../components/Iconos.jsx";
+import { aOpciones, useLista } from "../utils/useLista.js";
+import { activos, cargarUsuarios } from "../utils/catalogos.js";
 
 export const ClientesPage = () => {
     const { esAdmin } = useAuth();
-    const { opciones, nombreEmpleado } = useEmpleados();
-    const [clienteHistorial, setClienteHistorial] = useState(null);
+    const [historial, setHistorial] = useState(null);
+    const usuarios = useLista(cargarUsuarios, esAdmin);
+    const productores = useMemo(
+        () => aOpciones(activos(usuarios).filter((u) => u.rol === "PRODUCTOR"), "idUSUARIO", (u) => `${u.nombre} ${u.apellido}`),
+        [usuarios]
+    );
+    const cargarHistorial = useCallback(() => clientesApi.historial(historial.idCLIENTE), [historial]);
 
     const columnas = [
-        { titulo: "Nombre", clave: "nombre" },
-        { titulo: "Apellido", clave: "apellido" },
+        { titulo: "Cliente", clave: "nombre" },
+        { titulo: "CUIT", clave: "cuit" },
+        { titulo: "Teléfono", clave: "telefono" },
         { titulo: "Email", clave: "email" },
-        { titulo: "A cargo", clave: "EMPLEADO_idEMPLEADO", formato: nombreEmpleado },
-        // El USER solo ve clientes activos, así que la columna Estado es solo para el ADMIN
-        ...(esAdmin ? [{ titulo: "Estado", clave: "estado", formato: (estado) => <EstadoChip estado={estado} /> }] : []),
+        ...(esAdmin ? [{ titulo: "Productor", clave: "propietario" }] : []),
+        { titulo: "Estado", clave: "estado", formato: (v) => <ChipEstado valor={v} /> },
     ];
 
-    // Solo el ADMIN llega a este formulario: puede asignar (o reasignar) el cliente a un empleado
     const campos = [
-        { name: "nombre", label: "Nombre", required: true },
-        { name: "apellido", label: "Apellido", required: true },
+        ...(esAdmin
+            ? [{ name: "USUARIO_idPROPIETARIO", label: "Productor", type: "select", numerico: true, required: true, soloAlCrear: true, opciones: productores, vacio: "Elegí un productor", completo: true }]
+            : []),
+        { name: "nombre", label: "Nombre o razón social", required: true, completo: true },
+        { name: "cuit", label: "CUIT", inputMode: "numeric" },
+        { name: "telefono", label: "Teléfono", type: "tel" },
         { name: "email", label: "Email", type: "email", completo: true },
-        {
-            name: "EMPLEADO_idEMPLEADO",
-            label: "Empleado a cargo",
-            type: "select",
-            vacio: "Elegí un empleado",
-            numerico: true,
-            required: true,
-            completo: true,
-            opciones,
-        },
-        {
-            name: "estado",
-            label: "Estado",
-            type: "select",
-            vacio: "Elegí un estado",
-            numerico: true,
-            required: true,
-            porDefecto: 1,
-            opciones: OPCIONES_ESTADO,
-        },
     ];
 
     return (
@@ -64,33 +41,19 @@ export const ClientesPage = () => {
             <ModuloCrud
                 titulo="Clientes"
                 singular="Cliente"
-                descripcion={
-                    esAdmin
-                        ? "Quienes te compran la producción, con el historial de lo que compraron."
-                        : "Los clientes que tenés a cargo, con el historial de lo que compraron."
-                }
+                descripcion="Quiénes te compran. Mirá el historial de ventas de cada uno."
                 columnas={columnas}
                 campos={campos}
-                idClaves={ID_CLAVES}
-                api={api}
-                soloLectura={!esAdmin}
-                nombreDe={(f) => `${f.nombre ?? ""} ${f.apellido ?? ""}`.trim()}
-                accionesExtra={(fila) => (
-                    <BotonHistorial
-                        descripcion={`Ver historial de compras de ${fila.nombre ?? ""} ${fila.apellido ?? ""}`}
-                        onClick={() => setClienteHistorial(fila)}
-                    />
+                idClaves={["idCLIENTE"]}
+                api={clientesApi}
+                nombreDe={(c) => c.nombre}
+                accionesExtra={(c) => (
+                    <button type="button" className="btn-icono btn-icono-historial" title="Historial de ventas" aria-label={`Historial de ${c.nombre}`} onClick={() => setHistorial(c)}>
+                        <IconoHistorial />
+                    </button>
                 )}
             />
-
-            {clienteHistorial && (
-                <HistorialModal
-                    nombre={`${clienteHistorial.nombre ?? ""} ${clienteHistorial.apellido ?? ""}`.trim()}
-                    subtitulo="Cliente"
-                    filas={historialCliente(clienteHistorial.idCLIENTE ?? clienteHistorial.id)}
-                    onCerrar={() => setClienteHistorial(null)}
-                />
-            )}
+            {historial && <HistorialModal cargar={cargarHistorial} onCerrar={() => setHistorial(null)} />}
         </>
     );
 };
